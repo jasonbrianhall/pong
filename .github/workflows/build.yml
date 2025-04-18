@@ -39,52 +39,6 @@ jobs:
       run: |
         make windows
 
-    - name: Create collect_dlls.sh if it doesn't exist
-      run: |
-        if [ ! -f build/windows/collect_dlls.sh ]; then
-          mkdir -p build/windows
-          cat > build/windows/collect_dlls.sh << 'EOL'
-        #!/bin/bash
-        # Script to collect DLLs required by Windows executable
-        # $1 - Path to the executable
-        # $2 - Source directory for DLLs
-        # $3 - Target directory to copy DLLs to
-
-        EXE_PATH="$1"
-        DLL_SOURCE="$2"
-        TARGET_DIR="$3"
-
-        # Make sure target directory exists
-        mkdir -p "$TARGET_DIR"
-
-        # Get list of required DLLs
-        echo "Analyzing dependencies for $EXE_PATH..."
-        REQUIRED_DLLS=$(x86_64-w64-mingw32-objdump -p "$EXE_PATH" | grep "DLL Name:" | awk '{print $3}')
-
-        # Copy each required DLL
-        for DLL in $REQUIRED_DLLS; do
-            if [ -f "$DLL_SOURCE/$DLL" ]; then
-                echo "Copying $DLL..."
-                cp "$DLL_SOURCE/$DLL" "$TARGET_DIR/"
-                
-                # Check for transitive dependencies
-                TRANSITIVE_DLLS=$(x86_64-w64-mingw32-objdump -p "$DLL_SOURCE/$DLL" | grep "DLL Name:" | awk '{print $3}')
-                for TRANS_DLL in $TRANSITIVE_DLLS; do
-                    if [ -f "$DLL_SOURCE/$TRANS_DLL" ] && [ ! -f "$TARGET_DIR/$TRANS_DLL" ]; then
-                        echo "Copying transitive dependency $TRANS_DLL..."
-                        cp "$DLL_SOURCE/$TRANS_DLL" "$TARGET_DIR/"
-                    fi
-                done
-            else
-                echo "Warning: $DLL not found in $DLL_SOURCE"
-            fi
-        done
-
-        echo "DLL collection complete."
-        EOL
-          chmod +x build/windows/collect_dlls.sh
-        fi
-
     - name: Create Windows ZIP Package
       run: |
         # Create a clean directory for the package
@@ -94,7 +48,8 @@ jobs:
         cp build/windows/pong.exe pong-windows/
         
         # Copy ALL DLLs from the build directory - this is the critical part
-        cp build/windows/*.dll pong-windows/ || echo "No DLLs found in build/windows"
+        ls -l build/windows/*.dll
+        cp build/windows/*.dll pong-windows/
         
         # List the build/windows directory to see all available DLLs
         echo "Contents of build/windows directory:"
