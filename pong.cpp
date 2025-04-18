@@ -23,13 +23,35 @@ enum class Difficulty { EASY, MEDIUM, HARD };
 
 // Font handling
 const std::vector<std::string> FONT_PATHS = {
-    "arial.ttf",                                       // Generic fallback
-    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", // Linux common path
-    "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf", // Another
-                                                                       // Linux
-                                                                       // path
-    "C:\\Windows\\Fonts\\arial.ttf",      // Windows path
-    "/System/Library/Fonts/Helvetica.ttf" // macOS path
+    // Common system fonts
+    "/usr/share/fonts/truetype/ubuntu/Ubuntu-R.ttf",  // Ubuntu
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",  // Dejavu
+    "/usr/share/fonts/liberation/LiberationSans-Regular.ttf",  // Liberation Sans
+    
+    // More generic paths
+    "/usr/share/fonts/truetype/freefont/FreeSans.ttf",
+    "/usr/share/fonts/truetype/liberation2/LiberationSans-Regular.ttf",
+    
+    // Additional potential locations
+    "/usr/share/fonts/truetype/droid/DroidSans.ttf",
+    "/usr/share/fonts/google-droid/DroidSans.ttf",
+    
+    // Fallback generic names
+    "FreeSans.ttf",
+    "DejaVuSans.ttf",
+    "LiberationSans-Regular.ttf"
+    "/usr/share/fonts/dejavu-sans-fonts/DejaVuSans.ttf",
+    "/usr/share/fonts/dejavu-sans-mono-fonts/DejaVuSansMono.ttf",
+    "/usr/share/fonts/dejavu-serif-fonts/DejaVuSerif.ttf",
+    
+    // Fallback to full paths from previous attempts
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+    "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+    
+    // Absolute paths and generic names
+    "DejaVuSans.ttf",
+    "arial.ttf"
+
 };
 
 TTF_Font *loadBestFont(int fontSize) {
