@@ -1,0 +1,218 @@
+name: Build Pong Game
+
+on:
+  push:
+    branches: [ main, dev ]
+    paths:
+      - '**.cpp'
+      - '**.h'
+      - 'Makefile*'
+      - '.github/workflows/pong-build.yml'
+
+  pull_request:
+    branches: [ main, dev ]
+    paths:
+      - '**.cpp'
+      - '**.h'
+      - 'Makefile*'
+      - '.github/workflows/pong-build.yml'
+
+  workflow_dispatch:
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install Dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libsdl2-dev libsdl2-ttf-dev
+
+    - name: Build Linux Version
+      run: |
+        make linux
+
+    - name: Upload Linux Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: linux-artifacts
+        path: build/linux/pong
+
+  build-windows:
+    runs-on: ubuntu-latest
+    container: 
+      image: fedora:latest
+    permissions:
+      contents: write
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install Dependencies
+      run: |
+        dnf -y update
+        dnf -y install mingw64-gcc mingw64-gcc-c++ mingw64-SDL2 mingw64-SDL2_ttf make zip
+
+    - name: Build Windows Version
+      run: |
+        make windows
+
+    - name: Create collect_dlls.sh if it doesn't exist
+      run: |
+        if [ ! -f build/windows/collect_dlls.sh ]; then
+          mkdir -p build/windows
+          cat > build/windows/collect_dlls.sh << 'EOL'
+#!/bin/bash
+# Script to collect DLLs required by Windows executable
+# $1 - Path to the executable
+# $2 - Source directory for DLLs
+# $3 - Target directory to copy DLLs to
+
+EXE_PATH="$1"
+DLL_SOURCE="$2"
+TARGET_DIR="$3"
+
+# Make sure target directory exists
+mkdir -p "$TARGET_DIR"
+
+# Get list of required DLLs
+echo "Analyzing dependencies for $EXE_PATH..."
+REQUIRED_DLLS=$(x86_64-w64-mingw32-objdump -p "$EXE_PATH" | grep "DLL Name:" | awk '{print $3}')
+
+# Copy each required DLL
+for DLL in $REQUIRED_DLLS; do
+    if [ -f "$DLL_SOURCE/$DLL" ]; then
+        echo "Copying $DLL..."
+        cp "$DLL_SOURCE/$DLL" "$TARGET_DIR/"
+        
+        # Check for transitive dependencies
+        TRANSITIVE_DLLS=$(x86_64-w64-mingw32-objdump -p "$DLL_SOURCE/$DLL" | grep "DLL Name:" | awk '{print $3}')
+        for TRANS_DLL in $TRANSITIVE_DLLS; do
+            if [ -f "$DLL_SOURCE/$TRANS_DLL" ] && [ ! -f "$TARGET_DIR/$TRANS_DLL" ]; then
+                echo "Copying transitive dependency $TRANS_DLL..."
+                cp "$DLL_SOURCE/$TRANS_DLL" "$TARGET_DIR/"
+            fi
+        done
+    else
+        echo "Warning: $DLL not found in $DLL_SOURCE"
+    fi
+done
+
+echo "DLL collection complete."
+EOL
+          chmod +x build/windows/collect_dlls.sh
+        fi
+
+    - name: Create Windows ZIP Package
+      run: |
+        mkdir -p pong-windows
+        cp build/windows/pong.exe pong-windows/
+        cp build/windows/*.dll pong-windows/ 2>/dev/null || :
+        
+        # Copy any resources if needed
+        if [ -f "build/windows/settings.ini" ]; then
+          cp build/windows/settings.ini pong-windows/
+        fi
+        
+        # Create lib directory structure if it exists
+        if [ -d "build/windows/lib" ]; then
+          mkdir -p pong-windows/lib
+          cp -r build/windows/lib/* pong-windows/lib/
+        fi
+        
+        # Create share directory structure if it exists
+        if [ -d "build/windows/share" ]; then
+          mkdir -p pong-windows/share
+          cp -r build/windows/share/* pong-windows/share/
+        fi
+        
+        # Copy documentation
+        if [ -f "README.md" ]; then
+          cp README.md pong-windows/
+        fi
+        if [ -f "LICENSE.md" ]; then
+          cp LICENSE.md pong-windows/
+        fi
+        
+        # Create README-WINDOWS.txt with installation instructions
+        cat > pong-windows/README-WINDOWS.txt << 'EOL'
+Pong Game for Windows
+Version 1.0
+
+Installation:
+1. Extract all files to a directory of your choice.
+2. Run pong.exe to start the game.
+
+Controls:
+- Player 1: W (up) and S (down)
+- Player 2: Up and Down arrow keys
+- Difficulty: 1 (Easy), 2 (Medium), 3 (Hard)
+- Joystick support is also available
+
+Requirements:
+- Windows 7 or later
+- 64-bit Windows
+EOL
+        
+        # Create the ZIP file
+        zip -r Pong-Windows.zip pong-windows
+
+    - name: Upload Windows Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: windows-artifacts
+        path: |
+          Pong-Windows.zip
+          build/windows/pong.exe
+
+  create-release:
+    needs: [build-linux, build-windows]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    if: github.event_name == 'push'
+    
+    steps:
+    - name: Download Linux Artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: linux-artifacts
+        path: linux-artifacts
+
+    - name: Download Windows Artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: windows-artifacts
+        path: windows-artifacts
+
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          linux-artifacts/pong
+          windows-artifacts/Pong-Windows.zip
+          windows-artifacts/pong.exe
+        tag_name: ${{ github.ref == 'refs/heads/main' && format('v{0}', github.run_number) || format('dev-v{0}', github.run_number) }}
+        name: ${{ github.ref == 'refs/heads/main' && format('Release {0}', github.run_number) || format('Dev Build {0}', github.run_number) }}
+        draft: false
+        prerelease: ${{ github.ref != 'refs/heads/main' }}
+        token: ${{ secrets.GITHUB_TOKEN }}
+        body: |
+          ${{ github.ref == 'refs/heads/main' && 'Release build' || 'Development build' }}
+          Commit: ${{ github.sha }}
+          Build number: ${{ github.run_number }}
+          
+          This release includes:
+          - Linux version (pong)
+          - Windows version (pong.exe)
+          - Windows portable version with all dependencies (Pong-Windows.zip)
+
+    - name: Output Release URL
+      if: success()
+      run: |
+        echo "::notice::Release available at: https://github.com/${{ github.repository }}/releases/tag/${{ github.ref == 'refs/heads/main' && format('v{0}', github.run_number) || format('dev-v{0}', github.run_number) }}"
