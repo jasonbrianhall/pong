@@ -45,10 +45,10 @@ jobs:
         mkdir -p pong-windows
         
         # Copy the executable
+        ls -la build/windows
         cp build/windows/pong.exe pong-windows/
         
         # Copy ALL DLLs from the build directory - this is the critical part
-        ls -l build/windows/*.dll
         cp build/windows/*.dll pong-windows/
         
         # List the build/windows directory to see all available DLLs
