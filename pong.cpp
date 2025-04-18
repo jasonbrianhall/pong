@@ -18,6 +18,9 @@ const int PADDLE_SPEED = 5;
 const int BALL_SIZE = 15;
 const int BALL_SPEED = 5;
 
+// Joystick axis deadzone
+const int JOYSTICK_DEADZONE = 3200;
+
 // Difficulty levels
 enum class Difficulty { EASY, MEDIUM, HARD };
 
@@ -39,7 +42,7 @@ const std::vector<std::string> FONT_PATHS = {
     // Fallback generic names
     "FreeSans.ttf",
     "DejaVuSans.ttf",
-    "LiberationSans-Regular.ttf"
+    "LiberationSans-Regular.ttf",
     "/usr/share/fonts/dejavu-sans-fonts/DejaVuSans.ttf",
     "/usr/share/fonts/dejavu-sans-mono-fonts/DejaVuSansMono.ttf",
     "/usr/share/fonts/dejavu-serif-fonts/DejaVuSerif.ttf",
@@ -51,7 +54,6 @@ const std::vector<std::string> FONT_PATHS = {
     // Absolute paths and generic names
     "DejaVuSans.ttf",
     "arial.ttf"
-
 };
 
 TTF_Font *loadBestFont(int fontSize) {
@@ -158,6 +160,10 @@ private:
   bool isPlayerTwoAI;
   Difficulty aiDifficulty;
 
+  // Joystick support
+  std::vector<SDL_Joystick*> joysticks;
+  bool usingJoystick = false;
+
   Paddle leftPaddle;
   Paddle rightPaddle;
   Ball ball;
@@ -203,6 +209,37 @@ private:
     }
   }
 
+  void renderJoystickInfo() {
+    if (!font || !usingJoystick)
+      return;
+
+    SDL_Color white = {255, 255, 255, 255};
+    std::string joystickText = "Joysticks: " + std::to_string(joysticks.size()) + " detected";
+
+    SDL_Surface *joystickSurface =
+        TTF_RenderText_Solid(font, joystickText.c_str(), white);
+
+    if (!joystickSurface) {
+      std::cerr << "Unable to render joystick text! SDL_ttf Error: "
+                << TTF_GetError() << std::endl;
+      return;
+    }
+
+    SDL_Texture *joystickTexture =
+        SDL_CreateTextureFromSurface(renderer, joystickSurface);
+
+    SDL_Rect joystickRect;
+    joystickRect.x = SCREEN_WIDTH / 2 - joystickSurface->w / 2;
+    joystickRect.y = SCREEN_HEIGHT - 80;
+    joystickRect.w = joystickSurface->w;
+    joystickRect.h = joystickSurface->h;
+    SDL_RenderCopy(renderer, joystickTexture, NULL, &joystickRect);
+
+    // Clean up
+    SDL_FreeSurface(joystickSurface);
+    SDL_DestroyTexture(joystickTexture);
+  }
+
 public:
   Pong(bool playerTwoAI = true, Difficulty difficulty = Difficulty::MEDIUM)
       : window(nullptr), renderer(nullptr), font(nullptr), running(true),
@@ -212,7 +249,7 @@ public:
                     SCREEN_HEIGHT / 2 - PADDLE_HEIGHT / 2),
         leftScore(0), rightScore(0) {
     // Initialize SDL
-    if (SDL_Init(SDL_INIT_VIDEO) < 0) {
+    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_JOYSTICK) < 0) {
       std::cerr << "SDL could not initialize! SDL_Error: " << SDL_GetError()
                 << std::endl;
       return;
@@ -223,6 +260,23 @@ public:
       std::cerr << "SDL_ttf could not initialize! SDL_ttf Error: "
                 << TTF_GetError() << std::endl;
       return;
+    }
+
+    // Open all available joysticks
+    int numJoysticks = SDL_NumJoysticks();
+    std::cout << "Number of joysticks detected: " << numJoysticks << std::endl;
+    
+    for (int i = 0; i < numJoysticks; ++i) {
+      SDL_Joystick* joystick = SDL_JoystickOpen(i);
+      if (joystick) {
+        joysticks.push_back(joystick);
+        std::cout << "Joystick " << i << " opened: " 
+                  << SDL_JoystickName(joystick) << std::endl;
+        usingJoystick = true;
+      } else {
+        std::cerr << "Could not open joystick " << i 
+                  << "! SDL Error: " << SDL_GetError() << std::endl;
+      }
     }
 
     // Create window
@@ -248,59 +302,103 @@ public:
     font = loadBestFont(24);
   }
 
-  void handleEvents() {
+void handleEvents() {
     SDL_Event event;
     const Uint8 *keystate = SDL_GetKeyboardState(NULL);
+    
+    // Print joystick information at the start
+    int numJoysticks = SDL_NumJoysticks();
+    printf("Number of joysticks: %d\n", numJoysticks);
+    for (int i = 0; i < numJoysticks; i++) {
+        SDL_Joystick* joystick = SDL_JoystickOpen(i);
+        if (joystick) {
+            printf("Joystick %d: %s\n", i, SDL_JoystickName(joystick));
+            printf("  Number of axes: %d\n", SDL_JoystickNumAxes(joystick));
+            SDL_JoystickClose(joystick);
+        }
+    }
 
     // Process all events
     while (SDL_PollEvent(&event)) {
-      if (event.type == SDL_QUIT) {
-        running = false;
-      }
-
-      // Difficulty selection
-      if (event.type == SDL_KEYDOWN) {
-        switch (event.key.keysym.sym) {
-        case SDLK_1:
-          aiDifficulty = Difficulty::EASY;
-          std::cout << "Difficulty set to EASY" << std::endl;
-          break;
-        case SDLK_2:
-          aiDifficulty = Difficulty::MEDIUM;
-          std::cout << "Difficulty set to MEDIUM" << std::endl;
-          break;
-        case SDLK_3:
-          aiDifficulty = Difficulty::HARD;
-          std::cout << "Difficulty set to HARD" << std::endl;
-          break;
+        if (event.type == SDL_QUIT) {
+            running = false;
         }
-      }
+        
+        // Joystick axis motion event
+        if (event.type == SDL_JOYAXISMOTION) {
+            // Comprehensive debug information
+            printf("Joystick Event Details:\n");
+            printf("  Which joystick: %d\n", event.jaxis.which);
+            printf("  Axis number: %d\n", event.jaxis.axis);
+            printf("  Axis value: %d\n", event.jaxis.value);
+            
+            // Check all possible axes
+            for (int axis = 0; axis < 6; axis++) {  // Most gamepads have up to 6 axes
+                if (event.jaxis.axis == axis) {
+                    printf("Processing Axis %d\n", axis);
+                    
+                    if (event.jaxis.value > 16000) {
+                        printf("Axis %d moving down\n", axis);
+                        leftPaddle.yVel = PADDLE_SPEED;
+                    } else if (event.jaxis.value < -16000) {
+                        printf("Axis %d moving up\n", axis);
+                        leftPaddle.yVel = -PADDLE_SPEED;
+                    } else {
+                        printf("Axis %d near center\n", axis);
+                        leftPaddle.yVel = 0;
+                    }
+                }
+            }
+        }
+
+        // Existing event handling code remains the same...
+        // Button events for additional control
+        if (event.type == SDL_JOYBUTTONDOWN) {
+            printf("Button pressed: Joystick %d, Button %d\n", 
+                   event.jbutton.which, event.jbutton.button);
+        }
+
+        // Difficulty selection
+        if (event.type == SDL_KEYDOWN) {
+            switch (event.key.keysym.sym) {
+            case SDLK_1:
+                aiDifficulty = Difficulty::EASY;
+                printf("Difficulty set to EASY\n");
+                break;
+            case SDLK_2:
+                aiDifficulty = Difficulty::MEDIUM;
+                printf("Difficulty set to MEDIUM\n");
+                break;
+            case SDLK_3:
+                aiDifficulty = Difficulty::HARD;
+                printf("Difficulty set to HARD\n");
+                break;
+            }
+        }
     }
 
-    // Left paddle movement (W and S keys)
-    leftPaddle.yVel = 0;
+    // Left paddle movement (W and S keys or first joystick)
     if (keystate[SDL_SCANCODE_W]) {
-      leftPaddle.yVel = -PADDLE_SPEED;
+        leftPaddle.yVel = -PADDLE_SPEED;
     }
     if (keystate[SDL_SCANCODE_S]) {
-      leftPaddle.yVel = PADDLE_SPEED;
+        leftPaddle.yVel = PADDLE_SPEED;
     }
 
     // Right paddle movement
     if (isPlayerTwoAI) {
-      // AI controlled paddle
-      moveAIPaddle();
+        // AI controlled paddle
+        moveAIPaddle();
     } else {
-      // Human controlled paddle (Up and Down arrow keys)
-      rightPaddle.yVel = 0;
-      if (keystate[SDL_SCANCODE_UP]) {
-        rightPaddle.yVel = -PADDLE_SPEED;
-      }
-      if (keystate[SDL_SCANCODE_DOWN]) {
-        rightPaddle.yVel = PADDLE_SPEED;
-      }
+        // Human controlled paddle (Up and Down arrow keys)
+        if (keystate[SDL_SCANCODE_UP]) {
+            rightPaddle.yVel = -PADDLE_SPEED;
+        }
+        if (keystate[SDL_SCANCODE_DOWN]) {
+            rightPaddle.yVel = PADDLE_SPEED;
+        }
     }
-  }
+}
 
   void update() {
     leftPaddle.move();
@@ -309,7 +407,7 @@ public:
 
     // Ball collision with paddles
     if (SDL_HasIntersection(&ball.rect, &leftPaddle.rect) ||
-        SDL_HasIntersection(&ball.rect, &rightPaddle.rect)) {
+SDL_HasIntersection(&ball.rect, &rightPaddle.rect)) {
 
       // Determine which paddle was hit
       SDL_Rect *hitPaddle = SDL_HasIntersection(&ball.rect, &leftPaddle.rect)
@@ -350,6 +448,7 @@ public:
       ball.resetBall();
     }
   }
+
   void render() {
     // Clear screen
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
@@ -371,6 +470,9 @@ public:
 
     // Render difficulty instructions
     renderDifficultyInstructions();
+
+    // Render joystick info
+    renderJoystickInfo();
 
     // Present renderer
     SDL_RenderPresent(renderer);
@@ -495,6 +597,13 @@ public:
   }
 
   ~Pong() {
+    // Clean up joysticks
+    for (SDL_Joystick* joystick : joysticks) {
+      if (joystick) {
+        SDL_JoystickClose(joystick);
+      }
+    }
+
     // Clean up resources
     if (font)
       TTF_CloseFont(font);
@@ -502,10 +611,34 @@ public:
       SDL_DestroyRenderer(renderer);
     if (window)
       SDL_DestroyWindow(window);
+    
     TTF_Quit();
+    SDL_QuitSubSystem(SDL_INIT_JOYSTICK);
     SDL_Quit();
   }
 };
+
+// Helper function to print joystick information
+void printJoystickInfo() {
+  std::cout << "\nJoystick Controls:" << std::endl;
+  int numJoysticks = SDL_NumJoysticks();
+  if (numJoysticks > 0) {
+    for (int i = 0; i < numJoysticks; ++i) {
+      SDL_Joystick* joystick = SDL_JoystickOpen(i);
+      if (joystick) {
+        std::cout << "  Joystick " << i << ": " 
+                  << SDL_JoystickName(joystick) 
+                  << " (Axes: " << SDL_JoystickNumAxes(joystick) 
+                  << ", Buttons: " << SDL_JoystickNumButtons(joystick) 
+                  << ")" << std::endl;
+        SDL_JoystickClose(joystick);
+      }
+    }
+    std::cout << "Use vertical axis to control paddle movement" << std::endl;
+  } else {
+    std::cout << "No joysticks detected" << std::endl;
+  }
+}
 
 int main(int argc, char *argv[]) {
   // Seed random number generator
@@ -536,6 +669,10 @@ int main(int argc, char *argv[]) {
                 << (isPlayerTwoAI ? "AI (Adjust difficulty with 1-3 keys)"
                                   : "Up/Down arrow keys")
                 << std::endl;
+      
+      // Print joystick information
+      printJoystickInfo();
+      
       return 0;
     }
   }
