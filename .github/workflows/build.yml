@@ -7,7 +7,7 @@ on:
       - '**.cpp'
       - '**.h'
       - 'Makefile*'
-      - '.github/workflows/pong-build.yml'
+      - '.github/workflows/build.yml'
 
   pull_request:
     branches: [ master, dev ]
@@ -15,7 +15,7 @@ on:
       - '**.cpp'
       - '**.h'
       - 'Makefile*'
-      - '.github/workflows/pong-build.yml'
+      - '.github/workflows/build.yml'
 
   workflow_dispatch:
 
@@ -87,9 +87,25 @@ jobs:
 
     - name: Create Windows ZIP Package
       run: |
+        # Make sure build/windows/collect_dlls.sh is executable
+        chmod +x build/windows/collect_dlls.sh
+        
+        # Create a clean directory for the package
         mkdir -p pong-windows
+        
+        # Copy the executable
         cp build/windows/pong.exe pong-windows/
+        
+        # Copy all DLLs from the build directory
         cp build/windows/*.dll pong-windows/ 2>/dev/null || :
+        
+        # Make sure all dependent DLLs are collected
+        # Use the DLL collection script we created
+        build/windows/collect_dlls.sh build/windows/pong.exe /usr/x86_64-w64-mingw32/sys-root/mingw/bin pong-windows
+        
+        # Double check that SDL2 and SDL2_ttf DLLs are definitely included
+        cp /usr/x86_64-w64-mingw32/sys-root/mingw/bin/SDL2.dll pong-windows/ 2>/dev/null || :
+        cp /usr/x86_64-w64-mingw32/sys-root/mingw/bin/SDL2_ttf.dll pong-windows/ 2>/dev/null || :
         
         # Copy any resources if needed
         if [ -f "build/windows/settings.ini" ]; then
@@ -124,6 +140,7 @@ jobs:
         Installation:
         1. Extract all files to a directory of your choice.
         2. Run pong.exe to start the game.
+        3. IMPORTANT: Keep all DLL files in the same directory as pong.exe!
 
         Controls:
         - Player 1: W (up) and S (down)
@@ -135,6 +152,10 @@ jobs:
         - Windows 7 or later
         - 64-bit Windows
         EOL
+        
+        # Debug information - list all files in the package
+        echo "Files included in the package:"
+        ls -la pong-windows/
         
         # Create the ZIP file
         zip -r Pong-Windows.zip pong-windows
