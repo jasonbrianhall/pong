@@ -27,34 +27,30 @@ enum class Difficulty { EASY, MEDIUM, HARD };
 // Font handling
 const std::vector<std::string> FONT_PATHS = {
     // Common system fonts
-    "/usr/share/fonts/truetype/ubuntu/Ubuntu-R.ttf",  // Ubuntu
-    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",  // Dejavu
-    "/usr/share/fonts/liberation/LiberationSans-Regular.ttf",  // Liberation Sans
-    
+    "/usr/share/fonts/truetype/ubuntu/Ubuntu-R.ttf",          // Ubuntu
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",        // Dejavu
+    "/usr/share/fonts/liberation/LiberationSans-Regular.ttf", // Liberation Sans
+
     // More generic paths
     "/usr/share/fonts/truetype/freefont/FreeSans.ttf",
     "/usr/share/fonts/truetype/liberation2/LiberationSans-Regular.ttf",
-    
+
     // Additional potential locations
     "/usr/share/fonts/truetype/droid/DroidSans.ttf",
     "/usr/share/fonts/google-droid/DroidSans.ttf",
-    
+
     // Fallback generic names
-    "FreeSans.ttf",
-    "DejaVuSans.ttf",
-    "LiberationSans-Regular.ttf",
+    "FreeSans.ttf", "DejaVuSans.ttf", "LiberationSans-Regular.ttf",
     "/usr/share/fonts/dejavu-sans-fonts/DejaVuSans.ttf",
     "/usr/share/fonts/dejavu-sans-mono-fonts/DejaVuSansMono.ttf",
     "/usr/share/fonts/dejavu-serif-fonts/DejaVuSerif.ttf",
-    
+
     // Fallback to full paths from previous attempts
     "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
     "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
-    
+
     // Absolute paths and generic names
-    "DejaVuSans.ttf",
-    "arial.ttf"
-};
+    "DejaVuSans.ttf", "arial.ttf"};
 
 TTF_Font *loadBestFont(int fontSize) {
   TTF_Font *font = nullptr;
@@ -161,7 +157,7 @@ private:
   Difficulty aiDifficulty;
 
   // Joystick support
-  std::vector<SDL_Joystick*> joysticks;
+  std::vector<SDL_Joystick *> joysticks;
   bool usingJoystick = false;
 
   Paddle leftPaddle;
@@ -214,7 +210,8 @@ private:
       return;
 
     /*SDL_Color white = {255, 255, 255, 255};
-    std::string joystickText = "Joysticks: " + std::to_string(joysticks.size()) + " detected";
+    std::string joystickText = "Joysticks: " + std::to_string(joysticks.size())
+    + " detected";
 
     SDL_Surface *joystickSurface =
         TTF_RenderText_Solid(font, joystickText.c_str(), white);
@@ -265,16 +262,16 @@ public:
     // Open all available joysticks
     int numJoysticks = SDL_NumJoysticks();
     std::cout << "Number of joysticks detected: " << numJoysticks << std::endl;
-    
+
     for (int i = 0; i < numJoysticks; ++i) {
-      SDL_Joystick* joystick = SDL_JoystickOpen(i);
+      SDL_Joystick *joystick = SDL_JoystickOpen(i);
       if (joystick) {
         joysticks.push_back(joystick);
-        std::cout << "Joystick " << i << " opened: " 
-                  << SDL_JoystickName(joystick) << std::endl;
+        std::cout << "Joystick " << i
+                  << " opened: " << SDL_JoystickName(joystick) << std::endl;
         usingJoystick = true;
       } else {
-        std::cerr << "Could not open joystick " << i 
+        std::cerr << "Could not open joystick " << i
                   << "! SDL Error: " << SDL_GetError() << std::endl;
       }
     }
@@ -302,93 +299,92 @@ public:
     font = loadBestFont(24);
   }
 
-void handleEvents() {
+  void handleEvents() {
     SDL_Event event;
     const Uint8 *keystate = SDL_GetKeyboardState(NULL);
     static bool joystickActive = false;
     static int joystickDirection = 0; // 0=neutral, -1=up, 1=down
-    
+
     // Process all events
     while (SDL_PollEvent(&event)) {
-        if (event.type == SDL_QUIT) {
-            running = false;
+      if (event.type == SDL_QUIT) {
+        running = false;
+      }
+
+      // Difficulty selection
+      if (event.type == SDL_KEYDOWN) {
+        switch (event.key.keysym.sym) {
+        case SDLK_1:
+          aiDifficulty = Difficulty::EASY;
+          std::cout << "Difficulty set to EASY" << std::endl;
+          break;
+        case SDLK_2:
+          aiDifficulty = Difficulty::MEDIUM;
+          std::cout << "Difficulty set to MEDIUM" << std::endl;
+          break;
+        case SDLK_3:
+          aiDifficulty = Difficulty::HARD;
+          std::cout << "Difficulty set to HARD" << std::endl;
+          break;
         }
-        
-        // Difficulty selection
-        if (event.type == SDL_KEYDOWN) {
-            switch (event.key.keysym.sym) {
-            case SDLK_1:
-                aiDifficulty = Difficulty::EASY;
-                std::cout << "Difficulty set to EASY" << std::endl;
-                break;
-            case SDLK_2:
-                aiDifficulty = Difficulty::MEDIUM;
-                std::cout << "Difficulty set to MEDIUM" << std::endl;
-                break;
-            case SDLK_3:
-                aiDifficulty = Difficulty::HARD;
-                std::cout << "Difficulty set to HARD" << std::endl;
-                break;
-            }
+      }
+
+      // Joystick axis motion event
+      if (event.type == SDL_JOYAXISMOTION) {
+
+        // Specifically target Axis 1 for vertical movement
+        if (event.jaxis.axis == 1) {
+          if (event.jaxis.value > 16000) {
+            // Moving down
+            joystickActive = true;
+            joystickDirection = 1;
+          } else if (event.jaxis.value < -16000) {
+            // Moving up
+            joystickActive = true;
+            joystickDirection = -1;
+          } else {
+            // Stick is near center
+            joystickActive = false;
+            joystickDirection = 0;
+          }
         }
-        
-        
-        // Joystick axis motion event
-        if (event.type == SDL_JOYAXISMOTION) {
-            
-            // Specifically target Axis 1 for vertical movement
-            if (event.jaxis.axis == 1) { 
-                if (event.jaxis.value > 16000) {
-                    // Moving down
-                    joystickActive = true;
-                    joystickDirection = 1;
-                } else if (event.jaxis.value < -16000) {
-                    // Moving up
-                    joystickActive = true;
-                    joystickDirection = -1;
-                } else {
-                    // Stick is near center
-                    joystickActive = false;
-                    joystickDirection = 0;
-                }
-            }
-        }
+      }
     }
-    
+
     // Apply joystick input if active
     if (joystickActive) {
-        if (joystickDirection == 1) {
-            leftPaddle.yVel = PADDLE_SPEED;
-        } else if (joystickDirection == -1) {
-            leftPaddle.yVel = -PADDLE_SPEED;
-        }
+      if (joystickDirection == 1) {
+        leftPaddle.yVel = PADDLE_SPEED;
+      } else if (joystickDirection == -1) {
+        leftPaddle.yVel = -PADDLE_SPEED;
+      }
     } else {
-        // Only apply keyboard input if joystick is not active
-        if (keystate[SDL_SCANCODE_W]) {
-            leftPaddle.yVel = -PADDLE_SPEED;
-        } else if (keystate[SDL_SCANCODE_S]) {
-            leftPaddle.yVel = PADDLE_SPEED;
-        } else {
-            // No input at all, stop the paddle
-            leftPaddle.yVel = 0;
-        }
+      // Only apply keyboard input if joystick is not active
+      if (keystate[SDL_SCANCODE_W]) {
+        leftPaddle.yVel = -PADDLE_SPEED;
+      } else if (keystate[SDL_SCANCODE_S]) {
+        leftPaddle.yVel = PADDLE_SPEED;
+      } else {
+        // No input at all, stop the paddle
+        leftPaddle.yVel = 0;
+      }
     }
-    
+
     // Right paddle movement
     if (isPlayerTwoAI) {
-        // AI controlled paddle
-        moveAIPaddle();
+      // AI controlled paddle
+      moveAIPaddle();
     } else {
-        // Human controlled paddle (Up and Down arrow keys)
-        if (keystate[SDL_SCANCODE_UP]) {
-            rightPaddle.yVel = -PADDLE_SPEED;
-        } else if (keystate[SDL_SCANCODE_DOWN]) {
-            rightPaddle.yVel = PADDLE_SPEED;
-        } else {
-            rightPaddle.yVel = 0;  // Stop paddle when no key is pressed
-        }
+      // Human controlled paddle (Up and Down arrow keys)
+      if (keystate[SDL_SCANCODE_UP]) {
+        rightPaddle.yVel = -PADDLE_SPEED;
+      } else if (keystate[SDL_SCANCODE_DOWN]) {
+        rightPaddle.yVel = PADDLE_SPEED;
+      } else {
+        rightPaddle.yVel = 0; // Stop paddle when no key is pressed
+      }
     }
-}
+  }
 
   void update() {
     leftPaddle.move();
@@ -397,7 +393,7 @@ void handleEvents() {
 
     // Ball collision with paddles
     if (SDL_HasIntersection(&ball.rect, &leftPaddle.rect) ||
-SDL_HasIntersection(&ball.rect, &rightPaddle.rect)) {
+        SDL_HasIntersection(&ball.rect, &rightPaddle.rect)) {
 
       // Determine which paddle was hit
       SDL_Rect *hitPaddle = SDL_HasIntersection(&ball.rect, &leftPaddle.rect)
@@ -588,7 +584,7 @@ SDL_HasIntersection(&ball.rect, &rightPaddle.rect)) {
 
   ~Pong() {
     // Clean up joysticks
-    for (SDL_Joystick* joystick : joysticks) {
+    for (SDL_Joystick *joystick : joysticks) {
       if (joystick) {
         SDL_JoystickClose(joystick);
       }
@@ -601,7 +597,7 @@ SDL_HasIntersection(&ball.rect, &rightPaddle.rect)) {
       SDL_DestroyRenderer(renderer);
     if (window)
       SDL_DestroyWindow(window);
-    
+
     TTF_Quit();
     SDL_QuitSubSystem(SDL_INIT_JOYSTICK);
     SDL_Quit();
@@ -614,13 +610,12 @@ void printJoystickInfo() {
   int numJoysticks = SDL_NumJoysticks();
   if (numJoysticks > 0) {
     for (int i = 0; i < numJoysticks; ++i) {
-      SDL_Joystick* joystick = SDL_JoystickOpen(i);
+      SDL_Joystick *joystick = SDL_JoystickOpen(i);
       if (joystick) {
-        std::cout << "  Joystick " << i << ": " 
-                  << SDL_JoystickName(joystick) 
-                  << " (Axes: " << SDL_JoystickNumAxes(joystick) 
-                  << ", Buttons: " << SDL_JoystickNumButtons(joystick) 
-                  << ")" << std::endl;
+        std::cout << "  Joystick " << i << ": " << SDL_JoystickName(joystick)
+                  << " (Axes: " << SDL_JoystickNumAxes(joystick)
+                  << ", Buttons: " << SDL_JoystickNumButtons(joystick) << ")"
+                  << std::endl;
         SDL_JoystickClose(joystick);
       }
     }
@@ -659,10 +654,10 @@ int main(int argc, char *argv[]) {
                 << (isPlayerTwoAI ? "AI (Adjust difficulty with 1-3 keys)"
                                   : "Up/Down arrow keys")
                 << std::endl;
-      
+
       // Print joystick information
       printJoystickInfo();
-      
+
       return 0;
     }
   }
