@@ -2,20 +2,10 @@ name: Build Pong Game
 
 on:
   push:
-    branches: [ main, dev ]
-    paths:
-      - '**.cpp'
-      - '**.h'
-      - 'Makefile*'
-      - '.github/workflows/pong-build.yml'
+    branches: [ master, dev ]
 
   pull_request:
-    branches: [ main, dev ]
-    paths:
-      - '**.cpp'
-      - '**.h'
-      - 'Makefile*'
-      - '.github/workflows/pong-build.yml'
+    branches: [ master, dev ]
 
   workflow_dispatch:
 
