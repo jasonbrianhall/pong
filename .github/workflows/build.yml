@@ -67,44 +67,44 @@ jobs:
         if [ ! -f build/windows/collect_dlls.sh ]; then
           mkdir -p build/windows
           cat > build/windows/collect_dlls.sh << 'EOL'
-#!/bin/bash
-# Script to collect DLLs required by Windows executable
-# $1 - Path to the executable
-# $2 - Source directory for DLLs
-# $3 - Target directory to copy DLLs to
+        #!/bin/bash
+        # Script to collect DLLs required by Windows executable
+        # $1 - Path to the executable
+        # $2 - Source directory for DLLs
+        # $3 - Target directory to copy DLLs to
 
-EXE_PATH="$1"
-DLL_SOURCE="$2"
-TARGET_DIR="$3"
+        EXE_PATH="$1"
+        DLL_SOURCE="$2"
+        TARGET_DIR="$3"
 
-# Make sure target directory exists
-mkdir -p "$TARGET_DIR"
+        # Make sure target directory exists
+        mkdir -p "$TARGET_DIR"
 
-# Get list of required DLLs
-echo "Analyzing dependencies for $EXE_PATH..."
-REQUIRED_DLLS=$(x86_64-w64-mingw32-objdump -p "$EXE_PATH" | grep "DLL Name:" | awk '{print $3}')
+        # Get list of required DLLs
+        echo "Analyzing dependencies for $EXE_PATH..."
+        REQUIRED_DLLS=$(x86_64-w64-mingw32-objdump -p "$EXE_PATH" | grep "DLL Name:" | awk '{print $3}')
 
-# Copy each required DLL
-for DLL in $REQUIRED_DLLS; do
-    if [ -f "$DLL_SOURCE/$DLL" ]; then
-        echo "Copying $DLL..."
-        cp "$DLL_SOURCE/$DLL" "$TARGET_DIR/"
-        
-        # Check for transitive dependencies
-        TRANSITIVE_DLLS=$(x86_64-w64-mingw32-objdump -p "$DLL_SOURCE/$DLL" | grep "DLL Name:" | awk '{print $3}')
-        for TRANS_DLL in $TRANSITIVE_DLLS; do
-            if [ -f "$DLL_SOURCE/$TRANS_DLL" ] && [ ! -f "$TARGET_DIR/$TRANS_DLL" ]; then
-                echo "Copying transitive dependency $TRANS_DLL..."
-                cp "$DLL_SOURCE/$TRANS_DLL" "$TARGET_DIR/"
+        # Copy each required DLL
+        for DLL in $REQUIRED_DLLS; do
+            if [ -f "$DLL_SOURCE/$DLL" ]; then
+                echo "Copying $DLL..."
+                cp "$DLL_SOURCE/$DLL" "$TARGET_DIR/"
+                
+                # Check for transitive dependencies
+                TRANSITIVE_DLLS=$(x86_64-w64-mingw32-objdump -p "$DLL_SOURCE/$DLL" | grep "DLL Name:" | awk '{print $3}')
+                for TRANS_DLL in $TRANSITIVE_DLLS; do
+                    if [ -f "$DLL_SOURCE/$TRANS_DLL" ] && [ ! -f "$TARGET_DIR/$TRANS_DLL" ]; then
+                        echo "Copying transitive dependency $TRANS_DLL..."
+                        cp "$DLL_SOURCE/$TRANS_DLL" "$TARGET_DIR/"
+                    fi
+                done
+            else
+                echo "Warning: $DLL not found in $DLL_SOURCE"
             fi
         done
-    else
-        echo "Warning: $DLL not found in $DLL_SOURCE"
-    fi
-done
 
-echo "DLL collection complete."
-EOL
+        echo "DLL collection complete."
+        EOL
           chmod +x build/windows/collect_dlls.sh
         fi
 
@@ -141,23 +141,23 @@ EOL
         
         # Create README-WINDOWS.txt with installation instructions
         cat > pong-windows/README-WINDOWS.txt << 'EOL'
-Pong Game for Windows
-Version 1.0
+        Pong Game for Windows
+        Version 1.0
 
-Installation:
-1. Extract all files to a directory of your choice.
-2. Run pong.exe to start the game.
+        Installation:
+        1. Extract all files to a directory of your choice.
+        2. Run pong.exe to start the game.
 
-Controls:
-- Player 1: W (up) and S (down)
-- Player 2: Up and Down arrow keys
-- Difficulty: 1 (Easy), 2 (Medium), 3 (Hard)
-- Joystick support is also available
+        Controls:
+        - Player 1: W (up) and S (down)
+        - Player 2: Up and Down arrow keys
+        - Difficulty: 1 (Easy), 2 (Medium), 3 (Hard)
+        - Joystick support is also available
 
-Requirements:
-- Windows 7 or later
-- 64-bit Windows
-EOL
+        Requirements:
+        - Windows 7 or later
+        - 64-bit Windows
+        EOL
         
         # Create the ZIP file
         zip -r Pong-Windows.zip pong-windows
