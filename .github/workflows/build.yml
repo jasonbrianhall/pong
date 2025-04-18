@@ -3,36 +3,23 @@ name: Build Pong Game
 on:
   push:
     branches: [ master, dev ]
+    paths:
+      - '**.cpp'
+      - '**.h'
+      - 'Makefile*'
+      - '.github/workflows/pong-build.yml'
 
   pull_request:
     branches: [ master, dev ]
+    paths:
+      - '**.cpp'
+      - '**.h'
+      - 'Makefile*'
+      - '.github/workflows/pong-build.yml'
 
   workflow_dispatch:
 
 jobs:
-  build-linux:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-
-    steps:
-    - uses: actions/checkout@v4
-
-    - name: Install Dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y libsdl2-dev libsdl2-ttf-dev
-
-    - name: Build Linux Version
-      run: |
-        make linux
-
-    - name: Upload Linux Artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: linux-artifacts
-        path: build/linux/pong
-
   build-windows:
     runs-on: ubuntu-latest
     container: 
@@ -161,19 +148,13 @@ jobs:
           build/windows/pong.exe
 
   create-release:
-    needs: [build-linux, build-windows]
+    needs: [build-windows]
     runs-on: ubuntu-latest
     permissions:
       contents: write
     if: github.event_name == 'push'
     
     steps:
-    - name: Download Linux Artifacts
-      uses: actions/download-artifact@v4
-      with:
-        name: linux-artifacts
-        path: linux-artifacts
-
     - name: Download Windows Artifacts
       uses: actions/download-artifact@v4
       with:
@@ -184,7 +165,6 @@ jobs:
       uses: softprops/action-gh-release@v1
       with:
         files: |
-          linux-artifacts/pong
           windows-artifacts/Pong-Windows.zip
           windows-artifacts/pong.exe
         tag_name: ${{ github.ref == 'refs/heads/master' && format('v{0}', github.run_number) || format('dev-v{0}', github.run_number) }}
@@ -198,7 +178,6 @@ jobs:
           Build number: ${{ github.run_number }}
           
           This release includes:
-          - Linux version (pong)
           - Windows version (pong.exe)
           - Windows portable version with all dependencies (Pong-Windows.zip)
 
