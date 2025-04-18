@@ -213,7 +213,7 @@ private:
     if (!font || !usingJoystick)
       return;
 
-    SDL_Color white = {255, 255, 255, 255};
+    /*SDL_Color white = {255, 255, 255, 255};
     std::string joystickText = "Joysticks: " + std::to_string(joysticks.size()) + " detected";
 
     SDL_Surface *joystickSurface =
@@ -237,7 +237,7 @@ private:
 
     // Clean up
     SDL_FreeSurface(joystickSurface);
-    SDL_DestroyTexture(joystickTexture);
+    SDL_DestroyTexture(joystickTexture);*/
   }
 
 public:
@@ -305,86 +305,75 @@ public:
 void handleEvents() {
     SDL_Event event;
     const Uint8 *keystate = SDL_GetKeyboardState(NULL);
+    static bool joystickActive = false;
+    static int joystickDirection = 0; // 0=neutral, -1=up, 1=down
     
-    // Print joystick information at the start
-    int numJoysticks = SDL_NumJoysticks();
-    printf("Number of joysticks: %d\n", numJoysticks);
-    for (int i = 0; i < numJoysticks; i++) {
-        SDL_Joystick* joystick = SDL_JoystickOpen(i);
-        if (joystick) {
-            printf("Joystick %d: %s\n", i, SDL_JoystickName(joystick));
-            printf("  Number of axes: %d\n", SDL_JoystickNumAxes(joystick));
-            SDL_JoystickClose(joystick);
-        }
-    }
-
     // Process all events
     while (SDL_PollEvent(&event)) {
         if (event.type == SDL_QUIT) {
             running = false;
         }
         
-        // Joystick axis motion event
-        if (event.type == SDL_JOYAXISMOTION) {
-            // Comprehensive debug information
-            printf("Joystick Event Details:\n");
-            printf("  Which joystick: %d\n", event.jaxis.which);
-            printf("  Axis number: %d\n", event.jaxis.axis);
-            printf("  Axis value: %d\n", event.jaxis.value);
-            
-            // Check all possible axes
-            for (int axis = 0; axis < 6; axis++) {  // Most gamepads have up to 6 axes
-                if (event.jaxis.axis == axis) {
-                    printf("Processing Axis %d\n", axis);
-                    
-                    if (event.jaxis.value > 16000) {
-                        printf("Axis %d moving down\n", axis);
-                        leftPaddle.yVel = PADDLE_SPEED;
-                    } else if (event.jaxis.value < -16000) {
-                        printf("Axis %d moving up\n", axis);
-                        leftPaddle.yVel = -PADDLE_SPEED;
-                    } else {
-                        printf("Axis %d near center\n", axis);
-                        leftPaddle.yVel = 0;
-                    }
-                }
-            }
-        }
-
-        // Existing event handling code remains the same...
-        // Button events for additional control
-        if (event.type == SDL_JOYBUTTONDOWN) {
-            printf("Button pressed: Joystick %d, Button %d\n", 
-                   event.jbutton.which, event.jbutton.button);
-        }
-
         // Difficulty selection
         if (event.type == SDL_KEYDOWN) {
             switch (event.key.keysym.sym) {
             case SDLK_1:
                 aiDifficulty = Difficulty::EASY;
-                printf("Difficulty set to EASY\n");
+                std::cout << "Difficulty set to EASY" << std::endl;
                 break;
             case SDLK_2:
                 aiDifficulty = Difficulty::MEDIUM;
-                printf("Difficulty set to MEDIUM\n");
+                std::cout << "Difficulty set to MEDIUM" << std::endl;
                 break;
             case SDLK_3:
                 aiDifficulty = Difficulty::HARD;
-                printf("Difficulty set to HARD\n");
+                std::cout << "Difficulty set to HARD" << std::endl;
                 break;
             }
         }
+        
+        
+        // Joystick axis motion event
+        if (event.type == SDL_JOYAXISMOTION) {
+            
+            // Specifically target Axis 1 for vertical movement
+            if (event.jaxis.axis == 1) { 
+                if (event.jaxis.value > 16000) {
+                    // Moving down
+                    joystickActive = true;
+                    joystickDirection = 1;
+                } else if (event.jaxis.value < -16000) {
+                    // Moving up
+                    joystickActive = true;
+                    joystickDirection = -1;
+                } else {
+                    // Stick is near center
+                    joystickActive = false;
+                    joystickDirection = 0;
+                }
+            }
+        }
     }
-
-    // Left paddle movement (W and S keys or first joystick)
-    if (keystate[SDL_SCANCODE_W]) {
-        leftPaddle.yVel = -PADDLE_SPEED;
+    
+    // Apply joystick input if active
+    if (joystickActive) {
+        if (joystickDirection == 1) {
+            leftPaddle.yVel = PADDLE_SPEED;
+        } else if (joystickDirection == -1) {
+            leftPaddle.yVel = -PADDLE_SPEED;
+        }
+    } else {
+        // Only apply keyboard input if joystick is not active
+        if (keystate[SDL_SCANCODE_W]) {
+            leftPaddle.yVel = -PADDLE_SPEED;
+        } else if (keystate[SDL_SCANCODE_S]) {
+            leftPaddle.yVel = PADDLE_SPEED;
+        } else {
+            // No input at all, stop the paddle
+            leftPaddle.yVel = 0;
+        }
     }
-    if (keystate[SDL_SCANCODE_S]) {
-        leftPaddle.yVel = PADDLE_SPEED;
-    }
-
+    
     // Right paddle movement
     if (isPlayerTwoAI) {
         // AI controlled paddle
@@ -393,9 +382,10 @@ void handleEvents() {
         // Human controlled paddle (Up and Down arrow keys)
         if (keystate[SDL_SCANCODE_UP]) {
             rightPaddle.yVel = -PADDLE_SPEED;
-        }
-        if (keystate[SDL_SCANCODE_DOWN]) {
+        } else if (keystate[SDL_SCANCODE_DOWN]) {
             rightPaddle.yVel = PADDLE_SPEED;
+        } else {
+            rightPaddle.yVel = 0;  // Stop paddle when no key is pressed
         }
     }
 }
